@@ -1,7 +1,6 @@
 
 # coding: utf-8
 
-# In[163]:
 
 import activeSearchInterface as asI
 import scipy.sparse as ss
@@ -253,269 +252,28 @@ class EntityAS():
         self.activeSearch.initialize(Xaff)
 
 
-# In[116]:
-
-
-corpus1=[] 
-corpus2=[] 
-chuncksize=1000
-for i,line in enumerate(open('US_Canada_dedup_clean_text_training.txt','r')):
-    if i < chuncksize:
-        corpus1.append(line.rstrip().lower())
-    else:
-        
-        if i < chuncksize*2:
-            corpus2.append(line.rstrip().lower())
+def test():
+    corpus1=[] 
+    corpus2=[] 
+    chuncksize=1000
+    for i,line in enumerate(open('US_Canada_dedup_clean_text_training.txt','r')):
+        if i < chuncksize:
+            corpus1.append(line.rstrip().lower())
         else:
-            break
-
-
-# In[3]:
-
-#%load_ext cythonmagic
-
-
-# In[58]:
-
-len(corpus2)
-
-
-# In[164]:
-
-myAS=EntityAS()
-myAS.newActiveSearch([(i,x) for i,x in enumerate(corpus2)],starting_points=[534])
-
-
-# In[123]:
-
-
-
-
-# In[148]:
-
-mid=myAS.get_random_message()
-corpus2[mid]
-
-
-# In[149]:
-
-mid
-
-
-# In[66]:
-
-
-
-
-# In[87]:
-
-#myAS.decide_startingpoint(215)
-myAS.decide_startingpoint(mid)
-
-
-# In[13]:
-
-
-
-
-# In[112]:
-
-ids=myAS.get_next_ids()
-for x in ids:
-    print corpus2[x]
-
-
-# In[111]:
-
-myAS.activeSearch.boringMessage()
-
-
-# In[109]:
-
-myAS.activeSearch.boringMessage()
-
-
-# In[112]:
-
-
-
-
-# In[99]:
-
-import re
-from simhash import Simhash, SimhashIndex
-import string
-from nltk.util import ngrams
-from MyNgrams import ngrams as myngrams
-from hashes.simhash import simhash#faster than above
-import hashlib
-
-chars=string.punctuation+' '
-duplicate_threshold=0.98
-
-
-
-def get_features(s,n= 3):
-    #s = re.sub(r'[^\w]+', '', s)#swaped out with string translate function to make this faster
-    s=s.translate(None,chars)
-    return [s[i:i + n] for i in range(max(len(s) - n + 1, 1))]
-
-def try_indexing_1():
-    
-    #remove = dict((ord(char), u' ') for char in chars)#this is necessary for unicode strings 
-    #sentence="How are you? I Am fine. blar blar blar blar blar Thanks.3"
-    #get_features(sentence)
-    hashed=[ Simhash(get_features(v.lower())) for i, v in enumerate(corpus1)]
-    #index = SimhashIndex(objs, k=3)
-    alt_corpus=[]
-    index_map={}
-    near_duplicates={}
-    index_map_reverse={}
-    flag=True
-    count=0
-
-    #calculate simhashes
-    for i,x in enumerate(hashed):
-        for y in alt_corpus:
-            if 1.0-float(x.distance(y[1]))/64.0 > duplicate_threshold:
-                near_duplicates[y[0]].append(i)
-                index_map_reverse[i]=index_map_reverse[y[0]]
-                flag=False
+            
+            if i < chuncksize*2:
+                corpus2.append(line.rstrip().lower())
+            else:
                 break
-        if flag:
-            alt_corpus.append((i,x))
-            index_map[count]=i
-            index_map_reverse[i]=count
-            count+=1
-            near_duplicates[i]=[i]
-
-        flag=True
-    print len(alt_corpus)
-    
-def try_indexing_2():
-    #remove = dict((ord(char), u' ') for char in chars)#this is necessary for unicode strings 
-    #sentence="How are you? I Am fine. blar blar blar blar blar Thanks.3"
-    #get_features(sentence)
-    hashed=[simhash(v.lower()) for i, v in enumerate(corpus1)]
-    #index = SimhashIndex(objs, k=3)
-        
-    #remove = dict((ord(char), u' ') for char in chars)#this is necessary for unicode strings 
-    #sentence="How are you? I Am fine. blar blar blar blar blar Thanks.3"
-    #get_features(sentence)
-    #index = SimhashIndex(objs, k=3)
-    alt_corpus=[]
-    index_map={}
-    near_duplicates={}
-    index_map_reverse={}
-    flag=True
-    count=0
-
-    #calculate simhashes
-    for i,x in enumerate(hashed):
-        for y in alt_corpus:
-            if x.similarity(y[1]) > duplicate_threshold:
-                near_duplicates[y[0]].append(i)
-                index_map_reverse[i]=index_map_reverse[y[0]]
-                flag=False
-                break
-        if flag:
-            alt_corpus.append((i,x))
-            index_map[count]=i
-            index_map_reverse[i]=count
-            count+=1
-            near_duplicates[i]=[i]
-
-        flag=True
-    print len(alt_corpus)
-
-def try_indexing_3():
-        #remove = dict((ord(char), u' ') for char in chars)#this is necessary for unicode strings 
-    #sentence="How are you? I Am fine. blar blar blar blar blar Thanks.3"
-    #get_features(sentence)
-    hashed=[myhashing((v.lower())) for v in corpus1]
-    #index = SimhashIndex(objs, k=3)
-        
-    #remove = dict((ord(char), u' ') for char in chars)#this is necessary for unicode strings 
-    #sentence="How are you? I Am fine. blar blar blar blar blar Thanks.3"
-    #get_features(sentence)
-    #index = SimhashIndex(objs, k=3)
-    alt_corpus=[]
-    index_map={}
-    near_duplicates={}
-    index_map_reverse={}
-    flag=True
-    count=0
-
-    #calculate simhashes
-    for i,x in enumerate(hashed):
-        for y in alt_corpus:
-            if x == y[1]:
-                near_duplicates[y[0]].append(i)
-                index_map_reverse[i]=index_map_reverse[y[0]]
-                flag=False
-                break
-        if flag:
-            alt_corpus.append((i,x))
-            index_map[count]=i
-            index_map_reverse[i]=count
-            count+=1
-            near_duplicates[i]=[i]
-
-        flag=True
-    print len(alt_corpus)
-    
-    #most_common_words = most_common_words_list.most_common_words
-    #4, 6 gives good cross-phone number matching
-    #objs=[ nltkhashing(v.lower()) for i, v in enumerate(corpus1)]
-    #return objs
-  
 
 
-def myhashing(text):
-    n_grams = [x for x in myngrams(text.split(),5)]
-    return min([int(hashlib.sha256(gram).hexdigest(),16) for gram in n_grams])
-    
+    myAS=EntityAS()
+    myAS.newActiveSearch([(i,x) for i,x in enumerate(corpus2)],starting_points=[534])
 
-    #return str(min([int(hashlib.sha256(' '.join(gram)).hexdigest(),16) for gram in n_grams]))
-    
-def try_deduplication():
-    chars=string.punctuation+' '
-    objs=[(str(i), Simhash(get_features(v.lower()))) for i, v in enumerate(corpus1)]
+    #myAS.activeSearch.boringMessage()
+    #myAS.activeSearch.boringMessage()
 
 
-# In[86]:
-
-text = "how do these look and what does the whitespace do?"
-[x for x in ngrams(text.split(),5)]
 
 
-# In[100]:
-
-import cProfile
-#cProfile.run('try_indexing_1()')#9.9 -10 seconds
-#cProfile.run('try_indexing_2()')#6.6-7seconds
-cProfile.run('try_indexing_3()')#6.6-7seconds
-#cProfile.run('try_indexing_4()')#6.6-7seconds
-#objs=try_indexing_3()
-#objs=try_indexing_4()
-
-
-# In[55]:
-
-from MyNgrams import ngrams as myngrams
-text="hello world please try this one"
-n_grams = list(myngrams(text.split(),4))
-n_grams
-
-
-# In[151]:
-
-objs[999]
-
-
-# In[120]:
-
-import cProfile
-cProfile.run('try_indexing_2()')
-cProfile.run('try_indexing_3()')
 

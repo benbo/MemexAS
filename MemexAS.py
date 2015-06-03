@@ -2,8 +2,6 @@ import activeSearchInterface as asI
 import scipy.sparse as ss
 from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
 import numpy as np
-from sklearn.metrics.pairwise import rbf_kernel,linear_kernel
-from sklearn.metrics import roc_auc_score
 from sklearn.decomposition import TruncatedSVD
 from MyNgrams import ngrams
 import hashlib
@@ -14,15 +12,6 @@ import numpy as np
 from multiprocessing import Pool
 import kenlm
 from scipy import sparse
-
-
-import cPickle as pickle
-
-def LMEval(inObj):
-    idx, text = inObj[0], inObj[1]
-    model = kenlm.LanguageModel("models/LM_"+str(idx)+".arpa")
-    return [ model.score(line.rstrip())/float(len(line.split())) for line in text ]
-
 
 class MemexAS():
     
@@ -43,7 +32,6 @@ class MemexAS():
         self.dedupe=True
         self.tfidf=False
         self.prevalence=0.1
-        self.lmimdbfeatures=False
         self.eta=0.5
         self.dimred=False
         self.sparse=True
@@ -67,20 +55,6 @@ class MemexAS():
             idx=self.activeSearch.next_message
             self.activeSearch.labels[idx] = 0
             self.activeSearch.unlabeled_idxs.remove(idx)
-
-        #TODO        
-    def save(self,filename):
-        #save labels and objects so system can restart with them
-        pickle.dump(self.prev_corpus,filename+'_labels.pkl')
-        
-        #TODO
-    def load(self,filename):
-        prev_corpus = pickle.load(filename+'_labels.pkl')
-        
-        #TODO
-    def restartActiveSearch(self):#back up information, restart with new similarity function
-        #save labels
-        labels_backup=self.activeSearch.labels
 
     def hashing(self,text):
         n_grams = [x for x in ngrams(text.split(),5)]
@@ -113,8 +87,6 @@ class MemexAS():
     
     def get_id(self,idx):
         return self.curr_corpus[idx][0]
-    
-    
         
     def get_next_text(self):
         if len(self.activeSearch.unlabeled_idxs)>0:
@@ -137,53 +109,12 @@ class MemexAS():
         else:
             return -1
         
-    #def get_next_ids(self):
-    #    if len(self.activeSearch.unlabeled_idxs)>0:
-    #        m=self.activeSearch.getNextMessage()
-    #        return [self.curr_corpus[x][0] for x in self.near_duplicates[self.index_map[m]]]
-    #    else:
-    #        return []
-        
-    #return all, including near duplicates
-    #def get_next(self):
-    #    if len(self.activeSearch.unlabeled_idxs)>0:
-    #        m=self.activeSearch.getNextMessage()
-    #        return [self.curr_corpus[x] for x in self.near_duplicates[self.index_map[m]]]
-    #    else:
-    #        return []
-    
-    #def get_next_texts(self):
-    #    if len(self.activeSearch.unlabeled_idxs)>0:
-    #        m=self.activeSearch.getNextMessage()
-    #        return [self.curr_corpus[x][1] for x in self.near_duplicates[self.index_map[m]]]
-    #    else:
-    #        return []
-        
     def decide_startingpoint(self,id):
         self.activeSearch.firstMessage(self.index_map_reverse[self.id_to_idx[id]])        
         
-    def startJsonStr(self,jsonstring,textfield="text"):
-        obj=json.loads(jsonstring)
-        self.startJsonObj(obj,textfield)
-        
-    def startJsonObj(self,obj,textfield="text"):
-        corpus=[(key,obj[key][textfield]) for key in obj]
-    
-    def LMimdbfeatures(self,text,NumWorkers=6,NumClusters=30):
-        p = Pool(NumWorkers)
-        map_tasks = []
-        map_tasks = []
-        for j in xrange(NumClusters):
-                map_tasks.append( (j,text) )
-        vecs = p.map(LMEval, map_tasks)
-        return sparse.csr_matrix(np.array(vecs).transpose())
-        
-    def evaluate_scores(self,labels):
-        f=np.array(self.activeSearch.f[self.start_idx:])
-        return roc_auc_score(np.array(labels), f)
-        
-    def newActiveSearch(self,corpus,starting_points,labeled_corpus=[],labels=[],starting_points,dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.1,lmimdbfeatures=False,eta=0.2):
+    def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.1,lmimdbfeatures=False,eta=0.2):
         #store parameter selections
+        corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
         self.dedupe=dedupe
         self.tfidf=tfidf
         self.prevalence=prevalence
@@ -193,7 +124,8 @@ class MemexAS():
         self.n_components=n_components
         self.startAS(corpus,labeled_corpus=labeled_corpus,labels=labels,starting_points=starting_points)
         
-    def next_AS(self,corpus,starting_points=[]):
+    def next_AS(self,jsonobj,starting_points=[]):
+        corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
         new_labeled_indices=[i+self.start_idx for i,x in enumerate(self.activeSearch.labels[self.start_idx:]) if x !=-1]
         prev_labels=[self.activeSearch.labels[x] for x in new_labeled_indices]#list comprehension
         prev_corpus=[self.curr_corpus[self.index_map[x]] for x in new_labeled_indices]
@@ -214,9 +146,6 @@ class MemexAS():
             self.setTfidf()
         else:
             self.setCountVectorizer()
-        
-
-        
             
         #initialise with previous information
         start_idx=len(self.prev_labels)    

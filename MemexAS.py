@@ -114,7 +114,8 @@ class MemexAS():
         
     def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.1,lmimdbfeatures=False,eta=0.2):
         #store parameter selections
-        corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
+        #corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
+        corpus=[(x['ad_id'],x['text']) for x in jsonobj]
         self.dedupe=dedupe
         self.tfidf=tfidf
         self.prevalence=prevalence
@@ -125,7 +126,8 @@ class MemexAS():
         self.startAS(corpus,labeled_corpus=labeled_corpus,labels=labels,starting_points=starting_points)
         
     def next_AS(self,jsonobj,starting_points=[]):
-        corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
+        #corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
+        corpus=[(x['ad_id'],x['text']) for x in jsonobj]
         new_labeled_indices=[i+self.start_idx for i,x in enumerate(self.activeSearch.labels[self.start_idx:]) if x !=-1]
         prev_labels=[self.activeSearch.labels[x] for x in new_labeled_indices]#list comprehension
         prev_corpus=[self.curr_corpus[self.index_map[x]] for x in new_labeled_indices]

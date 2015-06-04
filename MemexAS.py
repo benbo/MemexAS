@@ -1,16 +1,11 @@
 import activeSearchInterface as asI
-import scipy.sparse as ss
 from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
 import numpy as np
 from sklearn.decomposition import TruncatedSVD
 from MyNgrams import ngrams
 import hashlib
-import string
 from random import randint
-import json
 import numpy as np
-from multiprocessing import Pool
-import kenlm
 from scipy import sparse
 
 class MemexAS():
@@ -36,8 +31,6 @@ class MemexAS():
         self.dimred=False
         self.sparse=True
         #variables needed to clean text
-        self.chars=string.punctuation+' '
-        #self.remove = dict((ord(char), u' ') for char in chars)#this is necessary for unicode strings 
 
 
     def interestingMessage(self):

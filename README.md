@@ -13,9 +13,9 @@ Active Search (AS) wrapper to conduct AS on deduplicated texts and transfer labe
         unzip master.zip  
         mv MemexAS-master MemexAS  
         cd MemexAS  
-        \#build a fast ngram cython function  
+        #build a fast ngram cython function  
         python setup.py build_ext --inplace  
-        \#Additionally, you need to download the following file into the same directory 
+        #Additionally, you need to download the following file into the same directory 
         wget https://github.com/AutonlabCMU/ActiveSearch/blob/sibi/kernelAS/python/activeSearchInterface.py
 
 ##Example##

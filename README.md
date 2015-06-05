@@ -18,6 +18,7 @@ python setup.py build_ext --inplace
 wget https://github.com/AutonlabCMU/ActiveSearch/blob/sibi/kernelAS/python/activeSearchInterface.py
 ##Example##
 If you have followed those steps then you should be able to use the MemexAS class in MemexAS.py
+
     from os import listdir  
     from os.path import join  
     import MemexAS  

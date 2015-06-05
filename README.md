@@ -8,14 +8,16 @@ Active Search (AS) wrapper to conduct AS on deduplicated texts and transfer labe
 - scikit-learn
 
 ##Installation##
-wget https://github.com/benbo/MemexAS/archive/master.zip  
-unzip master.zip  
-mv MemexAS-master MemexAS  
-cd MemexAS  
-\#build a fast ngram cython function  
-python setup.py build_ext --inplace  
-\#Additionally, you need to download the following file into the same directory 
-wget https://github.com/AutonlabCMU/ActiveSearch/blob/sibi/kernelAS/python/activeSearchInterface.py
+
+        wget https://github.com/benbo/MemexAS/archive/master.zip  
+        unzip master.zip  
+        mv MemexAS-master MemexAS  
+        cd MemexAS  
+        \#build a fast ngram cython function  
+        python setup.py build_ext --inplace  
+        \#Additionally, you need to download the following file into the same directory 
+        wget https://github.com/AutonlabCMU/ActiveSearch/blob/sibi/kernelAS/python/activeSearchInterface.py
+
 ##Example##
 If you have followed those steps then you should be able to use the MemexAS class in MemexAS.py
 

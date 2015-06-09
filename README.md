@@ -24,7 +24,7 @@ If you have followed those steps then you should be able to use the MemexAS clas
     from os import listdir  
     from os.path import join  
     import MemexAS  
-    myAS=MemexAS()  
+    myAS=MemexAS.MemexAS() 
     mypath="mytext.txt"#path to a textfile where each line represents a document/Ad  
     text=[(i,line.rstrip()) for i,line in enumerate(open(join(mypath,f),'r'))]  
     myAS.newActiveSearch(text,starting_points=[startp])  

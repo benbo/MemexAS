@@ -21,12 +21,12 @@ Active Search (AS) wrapper to conduct AS on deduplicated texts and transfer labe
 ##Example##
 If you have followed those steps then you should be able to use the MemexAS class in MemexAS.py
 
-    from os import listdir  
-    from os.path import join  
-    import MemexAS  
-    myAS=MemexAS.MemexAS() 
-    mypath="mytext.txt"#path to a textfile where each line represents a document/Ad  
-    text=[{'ad_id':i,'text':line.rstrip()} for i,line in enumerate(open(join(mypath,f),'r'))]  
-    myAS.newActiveSearch(text,starting_points=[startp])  
+        from os import listdir  
+        from os.path import join  
+        import MemexAS  
+        myAS=MemexAS.MemexAS()  
+        mypath="mytext.txt"#path to a textfile where each line represents a document/Ad  
+        text=[{'ad_id':i,'text':line.rstrip()} for i,line in enumerate(open(join(mypath,f),'r'))]  
+        myAS.newActiveSearch(text,starting_points=[startp])  
 
 

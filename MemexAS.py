@@ -62,13 +62,20 @@ class MemexAS():
             for idx in self.near_duplicates[self.index_map[key]]:
                 weights[idx]=self.activeSearch.f[key]
         #return list of (ids,weights)
-        return [(self.curr_corpus[i][0],w) for i,w in enumerate(weights)]        
+        return [(self.curr_corpus[i][0],w) for i,w in enumerate(weights)].sort(key=lambda tup: tup[1],reverse=True) 
         
+   def returnWeightsForUnlabeled(self):
+        weights=[0.0]*len(self.activeSearch.unlabeled_idxs)
+        for idx in self.activeSearch.unlabeled_idxs:
+            weights[idx]=self.activeSearch.f[idx]
+        return [(self.curr_corpus[i][0],w) for i,w in enumerate(weights)].sort(key=lambda tup: tup[1],reverse=True)
+
+
     def setCountVectorizer(self,binary=True,ngram_range=(1,1),max_df=0.95,min_df=0.005):
         self.vectorizer=CountVectorizer(analyzer='word',binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df)
     
     def setTfidf(self):
-        self.vectorizer=TfidfVectorizer(norm='l1',stop_words='english',analyzer='word',max_df=0.95,min_df=0.005)
+        self.vectorizer=TfidfVectorizer(norm='l2',stop_words='english',analyzer='word',max_df=0.95,min_df=0.005)
         
 
     def get_random_message(self):
@@ -107,7 +114,6 @@ class MemexAS():
         
     def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.1,lmimdbfeatures=False,eta=0.2):
         #store parameter selections
-        #corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
         corpus=[(x['ad_id'],x['text']) for x in jsonobj]
         self.dedupe=dedupe
         self.tfidf=tfidf
@@ -119,7 +125,6 @@ class MemexAS():
         self.startAS(corpus,labeled_corpus=labeled_corpus,labels=labels,starting_points=starting_points)
         
     def next_AS(self,jsonobj,starting_points=[]):
-        #corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
         corpus=[(x['ad_id'],x['text']) for x in jsonobj]
         new_labeled_indices=[i+self.start_idx for i,x in enumerate(self.activeSearch.labels[self.start_idx:]) if x !=-1]
         prev_labels=[self.activeSearch.labels[x] for x in new_labeled_indices]#list comprehension
@@ -165,13 +170,11 @@ class MemexAS():
             # where near-duplicates have been removed
 
             flag=True
-            #hashed=[simhash(tup[1].lower()) for i,tup in enumerate(corpus)]#simhash
             hashed=[self.hashing(tup[1].lower()) for i,tup in enumerate(corpus)]#minhash
             count=start_idx#initialize with number of previously labeled objects
             
             for i,x in enumerate(hashed):
                 for y in alt_corpus:
-                    #if x.similarity(y[1]) > self.duplicate_threshold:#simhash
                     if x==y[1]:#minhash
                         self.near_duplicates[y[0]].append(i)
                         self.index_map_reverse[i]=self.index_map_reverse[y[0]]
@@ -204,6 +207,9 @@ class MemexAS():
             else:
                 self.X=self.vectorizer.fit_transform([x[1] for x in self.prev_corpus] + [y[1] for y in corpus])
 
+        #add column to make sure induced graph is fully connected
+        self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.5 ))))
+
         if self.dimred:
             print self.X.shape
             svd=TruncatedSVD(n_components=self.n_components)
@@ -212,7 +218,7 @@ class MemexAS():
             self.sparse=False
 
         params=asI.Parameters(pi=self.prevalence,verbose=False,sparse=self.sparse,eta=self.eta)
-        self.activeSearch = asI.kernelAS(params=params) ##fast
+        self.activeSearch = asI.kernelAS(params=params) 
         
         self.activeSearch.initialize(self.X.transpose(),init_labels = {key: value for key, value in enumerate(self.prev_labels)})
         if len(starting_points)==0:

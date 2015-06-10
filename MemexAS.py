@@ -56,19 +56,19 @@ class MemexAS():
         else:
             int(hashlib.sha256("").hexdigest(),16)
         
+        
     def returnWeights(self):
+        #return list of (ids,weights)
         weights=[0.0]*self.num_messages
         for key in self.index_map:
             for idx in self.near_duplicates[self.index_map[key]]:
-                weights[idx]=self.activeSearch.f[key]
+                weights[idx]=self.activeSearch.f[idx]
+        return sorted([(self.curr_corpus[i][0],w) for i,w in enumerate(weights)],key=lambda x: x[1],reverse=True)
+    
+    def returnWeightsForUnlabeled(self):
         #return list of (ids,weights)
-        return [(self.curr_corpus[i][0],w) for i,w in enumerate(weights)].sort(key=lambda tup: tup[1],reverse=True) 
-        
-   def returnWeightsForUnlabeled(self):
-        weights=[0.0]*len(self.activeSearch.unlabeled_idxs)
-        for idx in self.activeSearch.unlabeled_idxs:
-            weights[idx]=self.activeSearch.f[idx]
-        return [(self.curr_corpus[i][0],w) for i,w in enumerate(weights)].sort(key=lambda tup: tup[1],reverse=True)
+        l=[(self.curr_corpus[self.index_map[idx]][0],self.activeSearch.f[idx])for idx in self.activeSearch.unlabeled_idxs]
+        return sorted(l, key=lambda x: x[1],reverse=True)
 
 
     def setCountVectorizer(self,binary=True,ngram_range=(1,1),max_df=0.95,min_df=0.005):

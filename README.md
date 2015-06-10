@@ -26,7 +26,8 @@ If you have followed those steps then you should be able to use the MemexAS clas
         import MemexAS  
         myAS=MemexAS.MemexAS()  
         mypath="mytext.txt"#path to a textfile where each line represents a document/Ad  
-        text=[{'ad_id':i,'text':line.rstrip()} for i,line in enumerate(open(join(mypath,f),'r'))]  
+        text=[{'ad_id':i,'text':line.rstrip()} for i,line in enumerate(open(join(mypath,f),'r'))]
+        startp=text[0][0]
         myAS.newActiveSearch(text,starting_points=[startp])  
 
 

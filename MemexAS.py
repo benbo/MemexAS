@@ -49,6 +49,21 @@ class MemexAS():
             self.activeSearch.labels[idx] = 0
             self.activeSearch.unlabeled_idxs.remove(idx)
 
+    def setLabel(self,idx,lbl):
+        #map from external id to internal corpus idx and then from copus idx to AS matrix idx
+        int_idx = self.index_map_reverse[self.id_to_idx[idx]]
+        if int_idx in self.activeSearch.unlabeled_idxs:
+            self.activeSearch.setLabel(int_idx,lbl)
+
+    def setLabelBulk(self,ids,lbls):
+        lookup=frozenset(self.activeSearch.unlabeled_idxs)
+        for i,tid in enumerate(ids):
+            #map from external id to internal corpus idx and then from copus idx to AS matrix idx
+            int_idx = self.index_map_reverse[self.id_to_idx[tid]]
+            if int_idx in lookup:
+                self.activeSearch.setLabel(int_idx,lbls[i])
+
+
     def hashing(self,text):
         n_grams = [x for x in ngrams(text.split(),5)]
         if len (n_grams) > 0:

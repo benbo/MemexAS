@@ -1,12 +1,18 @@
 import activeSearchInterface as asI
-from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
 import numpy as np
+
+from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
 from sklearn.decomposition import TruncatedSVD
+from sklearn import preprocessing
+
+from scipy.spatial.distance import pdist, squareform
+from scipy import sparse
+
 from MyNgrams import ngrams
 import hashlib
 from random import randint
-import numpy as np
-from scipy import sparse
+
+
 
 class MemexAS():
     
@@ -23,7 +29,9 @@ class MemexAS():
         self.near_duplicates={}#for indices in corpus points to indices of near duplicates        
         self.num_messages=-1
         self.start_idx=0
+        self.extendedVocabulary=set()
         
+        self.scalefactor=0
         self.dedupe=True
         self.tfidf=False
         self.prevalence=0.1
@@ -220,7 +228,7 @@ class MemexAS():
 
         text=[]
         if self.dedupe:
-            text = [x[1] for x in self.prev_corpus] + self.deduplicate(self,corpus)
+            text = [x[1] for x in self.prev_corpus] + self.deduplicate(corpus)
         else:
             count=self.start_idx
             for i in range(self.num_messages):
@@ -241,6 +249,8 @@ class MemexAS():
         self.X=self.vectorizer.fit_transform(text)
         #add column to make sure induced graph is fully connected
         self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
+        #self.X = preprocessing.scale(self.X)
+        
         
         if self.dimred:
             print self.X.shape
@@ -264,26 +274,45 @@ class MemexAS():
 
         
     def extendAS(self,ext_vocab=[]):
+        ngram_range=(500,0)
+        if len(ext_vocab)==0:
+            return
+        for x in ext_vocab:
+            l=len(x.split())
+            ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
+            
+        ext_vocab=[x.lower() for x in ext_vocab]
+            
         #this is just a restart so labels are still valid
-        labels={key: value for key, value in enumerate(np.nditer(self.activeSearch.labels))}
+        labels={key: value for key, value in enumerate(self.activeSearch.labels.tolist()) if value > -1}
+        self.extendedVocabulary.update(set(ext_vocab))
         
-        self.extendedVocabulary.extend(ext_vocab)
-        #featurize
+        #redo everything
         vocabulary = self.getVocabulary(self.text,extendedVoc=self.extendedVocabulary)
         if self.tfidf:
-            self.setTfidf(vocab=vocabulary)
+            self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
         else:
-            self.setCountVectorizer(vocab=vocabulary)
-        self.X=self.vectorizer.fit_transform(text)
+            self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
+        self.X=self.vectorizer.fit_transform(self.text)
         #add column to make sure induced graph is fully connected
         self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
+
+        #if self.dimred:
+        #    print self.X.shape
+        #    svd=TruncatedSVD(n_components=self.n_components)
+        #    self.X=svd.fit_transform(self.X)
+        #    print("dimensionalty reduction leads to explained variance ratio sum of "+str(svd.explained_variance_ratio_.sum()))
+        #    self.sparse=False
         
-        if self.dimred:
-            print self.X.shape
-            svd=TruncatedSVD(n_components=self.n_components)
-            self.X=svd.fit_transform(self.X)
-            print("dimensionalty reduction leads to explained variance ratio sum of "+str(svd.explained_variance_ratio_.sum()))
-            self.sparse=False
+        #attach only 
+        #tempvectorizer=CountVectorizer(analyzer='word',vocabulary=ext_vocab,binary=True,ngram_range=ngram_range)
+        #addX=tempvectorizer.fit_transform(text)
+        #add column 
+        #self.X = sparse.hstack((self.X,addX))
+        #get scale
+        #pairwise_dists = squareform(pdist([np.random.choice(self.X.shape[0], 1000, replace=False),:], 'euclidean'))
+        #self.scalefactor = np.median(pairwise_dists)
+        
 
         
         params=asI.Parameters(pi=self.prevalence,verbose=False,sparse=self.sparse,eta=self.eta)

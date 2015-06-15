@@ -1,3 +1,4 @@
+# coding: utf-8
 import activeSearchInterface as asI
 import numpy as np
 
@@ -92,19 +93,36 @@ class MemexAS():
         return vocab
         
         
-    def returnWeights(self):
-        #return list of (ids,weights)
-        weights=[0.0]*self.num_messages
-        for key in self.index_map:
-            for idx in self.near_duplicates[self.index_map[key]]:
-                weights[idx]=self.activeSearch.f[idx]
-        return sorted([(self.curr_corpus[i][0],w) for i,w in enumerate(weights)],key=lambda x: x[1],reverse=True)
-    
-    def returnWeightsForUnlabeled(self):
-        #return list of (ids,weights)
-        l=[(self.curr_corpus[self.index_map[idx]][0],self.activeSearch.f[idx])for idx in self.activeSearch.unlabeled_idxs]
-        return sorted(l, key=lambda x: x[1],reverse=True)
-        
+    def returnWeights(self,unlabeled_only=True,number=20,deduped=True):#return list of (ids,weights)
+        if unlabeled_only:
+            l = [(self.curr_corpus[self.index_map[idx]],self.activeSearch.f[idx])for idx in self.activeSearch.unlabeled_idxs]
+            l = sorted(l, key=lambda x: x[1],reverse=True)
+        else:
+            weights=[0.0]*self.num_messages
+            for key in self.index_map:
+                for idx in self.near_duplicates[self.index_map[key]]:
+                    weights[idx]=self.activeSearch.f[idx]
+            l= sorted([(self.curr_corpus[i][0],w) for i,w in enumerate(weights)],key=lambda x: x[1],reverse=True)
+        if deduped:
+            count=0
+            toreturn=[]
+            s=[]
+            for x in l:
+                if len(toreturn)<number:
+                    hashed=self.hashing(x[0][1].lower())
+                    for y in s:
+                        if hashed==y:#skip if near duplicate is already in returned set
+                            continue
+                    #no element in s is a near duplicate of x, so return it
+                    s.append(hashed)
+                    toreturn.append((x[0][0],x[1]))
+                else:
+                    return toreturn
+            #unlabeled, deduplicated are fewer than number
+            return toreturn
+        else:
+            return [(x[0][0],x[1]) for x in l[:number]]
+                    
         
     def setCountVectorizer(self,vocab=None,binary=True,ngram_range=(1,1),max_df=0.95,min_df=0.005):
         if vocab:
@@ -241,11 +259,17 @@ class MemexAS():
         #save text so that restart is possible
         self.text=text
         #featurize
-        vocabulary = self.getVocabulary(text,extendedVoc=self.extendedVocabulary)
+        ngram_range=(500,0)
+        if len(self.extendedVocabulary)==0:
+            ngram_range=(1,1)
+        for x in self.extendedVocabulary:
+            l=len(x.split())
+            ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
+        vocabulary = self.getVocabulary(text,extendedVoc=list(self.extendedVocabulary))
         if self.tfidf:
-            self.setTfidf(vocab=vocabulary)
+            self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
         else:
-            self.setCountVectorizer(vocab=vocabulary)
+            self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
         self.X=self.vectorizer.fit_transform(text)
         #add column to make sure induced graph is fully connected
         self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
@@ -274,12 +298,7 @@ class MemexAS():
 
         
     def extendAS(self,ext_vocab=[]):
-        ngram_range=(500,0)
-        if len(ext_vocab)==0:
-            return
-        for x in ext_vocab:
-            l=len(x.split())
-            ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
+
             
         ext_vocab=[x.lower() for x in ext_vocab]
             
@@ -288,7 +307,15 @@ class MemexAS():
         self.extendedVocabulary.update(set(ext_vocab))
         
         #redo everything
-        vocabulary = self.getVocabulary(self.text,extendedVoc=self.extendedVocabulary)
+        ngram_range=(500,0)
+        if len(ext_vocab)==0:
+            return
+        for x in self.extendedVocabulary:
+            l=len(x.split())
+            ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
+        
+        
+        vocabulary = self.getVocabulary(self.text,extendedVoc=list(self.extendedVocabulary))
         if self.tfidf:
             self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
         else:
@@ -305,6 +332,12 @@ class MemexAS():
         #    self.sparse=False
         
         #attach only 
+        #ngram_range=(500,0)
+        #if len(ext_vocab)==0:
+        #    return
+        #for x in ext_vocab:
+        #    l=len(x.split())
+        #    ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
         #tempvectorizer=CountVectorizer(analyzer='word',vocabulary=ext_vocab,binary=True,ngram_range=ngram_range)
         #addX=tempvectorizer.fit_transform(text)
         #add column 
@@ -319,3 +352,5 @@ class MemexAS():
         self.activeSearch = asI.kernelAS(params=params) ##fast
         self.activeSearch.initialize(self.X.transpose(),init_labels = labels)
         
+
+

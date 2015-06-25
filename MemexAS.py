@@ -31,7 +31,7 @@ class MemexAS():
         self.num_messages=-1
         self.start_idx=0
         self.extendedVocabulary=set()
-        
+        self.Xsparse=None
         self.scalefactor=0
         self.dedupe=True
         self.tfidf=False
@@ -126,15 +126,15 @@ class MemexAS():
         
     def setCountVectorizer(self,vocab=None,binary=True,ngram_range=(1,1),max_df=0.95,min_df=0.005):
         if vocab:
-            self.vectorizer=CountVectorizer(analyzer='word',vocabulary=vocab,binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df)
+            self.vectorizer=CountVectorizer(analyzer='word',vocabulary=vocab,binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
         else:
-            self.vectorizer=CountVectorizer(analyzer='word',binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df)
+            self.vectorizer=CountVectorizer(analyzer='word',binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
     
     def setTfidf(self,vocab=None,ngram_range=(1,1),max_df=0.95,min_df=0.005):
         if vocab:
-            self.vectorizer=TfidfVectorizer(norm='l1',vocabulary=vocab,stop_words='english',analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df)
+            self.vectorizer=TfidfVectorizer(norm='l1',vocabulary=vocab,stop_words='english',analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
         else:
-            self.vectorizer=TfidfVectorizer(norm='l1',stop_words='english',analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df)
+            self.vectorizer=TfidfVectorizer(norm='l1',stop_words='english',analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
         
 
     def get_random_message(self):
@@ -270,35 +270,40 @@ class MemexAS():
             self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
         else:
             self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
-        self.X=self.vectorizer.fit_transform(text)
+        X=self.vectorizer.fit_transform(text)
         #add column to make sure induced graph is fully connected
-        self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
+        self.Xsparse = sparse.hstack((X, sparse.csr_matrix(np.full((X.shape[0],1), X.data.min()*.1 ))))
         #self.X = preprocessing.scale(self.X)
         
         
         if self.dimred:
-            print self.X.shape
+            print self.Xsparse.shape
             svd=TruncatedSVD(n_components=self.n_components)
-            self.X=svd.fit_transform(self.X)
+            X=svd.fit_transform(self.Xsparse)
             print("dimensionalty reduction leads to explained variance ratio sum of "+str(svd.explained_variance_ratio_.sum()))
             self.sparse=False
+        else:
+            X=self.Xsparse
 
+        #get scale
+        #extimate pairwise distances through random sampling
+        pairwise_dists = squareform(pdist(X[np.random.choice(X.shape[0], 1000, replace=False),:], 'euclidean'))
+        self.scalefactor = np.mean(pairwise_dists)
         
         params=asI.Parameters(pi=self.prevalence,verbose=False,sparse=self.sparse,eta=self.eta)
         self.activeSearch = asI.kernelAS(params=params) ##fast
         
-        self.activeSearch.initialize(self.X.transpose(),init_labels = {key: value for key, value in enumerate(self.prev_labels)})
+        self.activeSearch.initialize(X.transpose(),init_labels = {key: value for key, value in enumerate(self.prev_labels)})
         if len(starting_points)==0:
             if len(self.prev_labels)==0:
                 raise Exception ("No start point and no labels provided")
         else:
             self.decide_startingpoint(starting_points[0])
             for x in starting_points[1:]:
-                self.activeSearch.setLabel(self.index_map_reverse[self.id_to_idx[i]],1)
+                self.activeSearch.setLabel(self.index_map_reverse[self.id_to_idx[x]],1)
 
         
     def extendAS(self,ext_vocab=[]):
-
             
         ext_vocab=[x.lower() for x in ext_vocab]
             
@@ -307,22 +312,22 @@ class MemexAS():
         self.extendedVocabulary.update(set(ext_vocab))
         
         #redo everything
-        ngram_range=(500,0)
-        if len(ext_vocab)==0:
-            return
-        for x in self.extendedVocabulary:
-            l=len(x.split())
-            ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
+        #ngram_range=(500,0)
+        #if len(ext_vocab)==0:
+        #    return
+        #for x in self.extendedVocabulary:
+        #    l=len(x.split())
+        #    ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
         
         
-        vocabulary = self.getVocabulary(self.text,extendedVoc=list(self.extendedVocabulary))
-        if self.tfidf:
-            self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
-        else:
-            self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
-        self.X=self.vectorizer.fit_transform(self.text)
+        #vocabulary = self.getVocabulary(self.text,extendedVoc=list(self.extendedVocabulary))
+        #if self.tfidf:
+        #    self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
+        #else:
+        #    self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
+        #self.X=self.vectorizer.fit_transform(self.text)
         #add column to make sure induced graph is fully connected
-        self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
+        #self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
 
         #if self.dimred:
         #    print self.X.shape
@@ -332,25 +337,32 @@ class MemexAS():
         #    self.sparse=False
         
         #attach only 
-        #ngram_range=(500,0)
-        #if len(ext_vocab)==0:
-        #    return
-        #for x in ext_vocab:
-        #    l=len(x.split())
-        #    ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
-        #tempvectorizer=CountVectorizer(analyzer='word',vocabulary=ext_vocab,binary=True,ngram_range=ngram_range)
-        #addX=tempvectorizer.fit_transform(text)
+        ngram_range=(500,0)
+        if len(ext_vocab)==0:
+            return
+        for x in ext_vocab:
+            l=len(x.split())
+            ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
+        tempvectorizer=CountVectorizer(analyzer='word',vocabulary=ext_vocab,binary=True,ngram_range=ngram_range,decode_error=u'ignore')
+        addX=tempvectorizer.fit_transform(self.text)
+        #scale by mean distance and some factor
+        #some_factor=2
+        #addX.multiply(self.scalefactor*float(some_factor))
+        
         #add column 
-        #self.X = sparse.hstack((self.X,addX))
-        #get scale
-        #pairwise_dists = squareform(pdist([np.random.choice(self.X.shape[0], 1000, replace=False),:], 'euclidean'))
-        #self.scalefactor = np.median(pairwise_dists)
+        self.Xsparse = sparse.hstack((self.Xsparse,addX))
         
-
-        
+        if self.dimred:
+            print self.Xsparse.shape
+            svd=TruncatedSVD(n_components=self.n_components)
+            X=svd.fit_transform(self.Xsparse)
+            print("dimensionalty reduction leads to explained variance ratio sum of "+str(svd.explained_variance_ratio_.sum()))
+            self.sparse=False
+        else:
+            X=self.Xsparse
         params=asI.Parameters(pi=self.prevalence,verbose=False,sparse=self.sparse,eta=self.eta)
         self.activeSearch = asI.kernelAS(params=params) ##fast
-        self.activeSearch.initialize(self.X.transpose(),init_labels = labels)
+        self.activeSearch.initialize(X.transpose(),init_labels = labels)
         
 
 

@@ -25,9 +25,7 @@ class MemexAS():
         self.vectorizer=None
         self.curr_corpus=[]
         self.id_to_idx={}#maps external id (e.g. AdId) to internal corpus index
-        self.index_map={}#maps active search matrix indices to indices of corpus
-        self.index_map_reverse={}#maps indices from corpus to active search matrix indices
-        self.near_duplicates={}#for indices in corpus points to indices of near duplicates        
+        self.hashlookup={}
         self.num_messages=-1
         self.start_idx=0
         self.extendedVocabulary=set()
@@ -39,39 +37,73 @@ class MemexAS():
         self.eta=0.5
         self.dimred=False
         self.sparse=True
-        #variables needed to clean text
 
 
     def interestingMessage(self):
         if len(self.activeSearch.unlabeled_idxs)>1:
-            self.activeSearch.interestingMessage()
-        elif len(self.activeSearch.unlabeled_idxs)==1:
-            idx=self.activeSearch.next_message
-            self.activeSearch.labels[idx] = 1
-            self.activeSearch.unlabeled_idxs.remove(idx)
-    
-    def boringMessage(self):
-        if len(self.activeSearch.unlabeled_idxs)>1:
-            self.activeSearch.boringMessage()
+            try:
+                idx=self.activeSearch.next_message
+                near_dupes=[]
+                if self.dedupe
+                    currhash = self.hashed[self.activeSearch.next_message]
+                    near_dupes=self.hashlookup[currhash]
+                self.activeSearch.interestingMessage()
+                self.unlabeled_idxs.remove(idx)
+                for idx in near_dupes[1:]:
+                    if x in self.unlabeled_idxs:
+                        self.activeSearch.setLabel(x,1)
+                        self.unlabeled_idxs.remove(x)
+
+            except,e:
+                print e
         elif len(self.activeSearch.unlabeled_idxs)==1:
             idx=self.activeSearch.next_message
             self.activeSearch.labels[idx] = 0
             self.activeSearch.unlabeled_idxs.remove(idx)
+            self.unlabeled_idxs.remove(idx)
 
-    def setLabel(self,idx,lbl):
+    
+    def boringMessage(self):
+        if len(self.activeSearch.unlabeled_idxs)>1:
+            try:
+                idx=self.activeSearch.next_message
+                near_dupes=[]
+                if self.dedupe
+                    currhash = self.hashed[self.activeSearch.next_message]
+                    near_dupes=self.hashlookup[currhash]
+                self.activeSearch.boringMessage()
+                self.unlabeled_idxs.remove(idx)
+                for idx in near_dupes[1:]:
+                    if x in self.unlabeled_idxs:
+                        self.activeSearch.setLabel(x,0)
+                        self.unlabeled_idxs.remove(x)
+
+            except,e:
+                print e
+        elif len(self.activeSearch.unlabeled_idxs)==1:
+            idx=self.activeSearch.next_message
+            self.activeSearch.labels[idx] = 0
+            self.activeSearch.unlabeled_idxs.remove(idx)
+            self.unlabeled_idxs.remove(idx)
+
+    def setLabel(self,ext_id,lbl):
         #map from external id to internal corpus idx and then from copus idx to AS matrix idx
-        int_idx = self.index_map_reverse[self.id_to_idx[idx]]
-        if int_idx in self.activeSearch.unlabeled_idxs:
-            self.activeSearch.setLabel(int_idx,lbl)
+        int_idx = self.id_to_idx[ext_id]
+        if int_idx in self.unlabeled_idxs:
+            if self.dedupe:
+                currhash = self.hashed[int_idx]
+                near_dupes=self.hashlookup[currhash]
+                for x in near_dupes[1:]:
+                    if x in self.unlabeled_idxs:
+                        self.activeSearch.setLabel(x,lbl)
+                        self.unlabeled_idxs.remove(x)
+            else:
+                self.activeSearch.setLabel(int_idx,lbl)
+                self.unlabeled_idxs.remove(int_idx)
 
     def setLabelBulk(self,ids,lbls):
-        lookup=frozenset(self.activeSearch.unlabeled_idxs)
-        for i,tid in enumerate(ids):
-            #map from external id to internal corpus idx and then from copus idx to AS matrix idx
-            int_idx = self.index_map_reverse[self.id_to_idx[tid]]
-            if int_idx in lookup:
-                self.activeSearch.setLabel(int_idx,lbls[i])
-    
+        for i,ext_id in enumerate(ids):
+            self.setLabel(ext_id,lbls[i])
             
     def hashing(self,text):
         n_grams = [x for x in ngrams(text.split(),5)]
@@ -95,33 +127,29 @@ class MemexAS():
         
     def returnWeights(self,unlabeled_only=True,number=20,deduped=True):#return list of (ids,weights)
         if unlabeled_only:
-            l = [(self.curr_corpus[self.index_map[idx]],self.activeSearch.f[idx])for idx in self.activeSearch.unlabeled_idxs]
+            l = [(self.curr_corpus[idx][0],self.activeSearch.f[idx])for idx in self.activeSearch.unlabeled_idxs]
             l = sorted(l, key=lambda x: x[1],reverse=True)
         else:
-            weights=[0.0]*self.num_messages
-            for key in self.index_map:
-                for idx in self.near_duplicates[self.index_map[key]]:
-                    weights[idx]=self.activeSearch.f[idx]
-            l= sorted([(self.curr_corpus[i][0],w) for i,w in enumerate(weights)],key=lambda x: x[1],reverse=True)
+            l= sorted([(self.curr_corpus[idx][0],self.activeSearch.f[idx]) for idx in self.activeSearch.f],key=lambda x: x[1],reverse=True)
         if deduped:
             count=0
             toreturn=[]
             s=[]
             for x in l:
                 if len(toreturn)<number:
-                    hashed=self.hashing(x[0][1].lower())
+                    hashed=self.hashed[self.id_to_idx[x[0]]]
                     for y in s:
                         if hashed==y:#skip if near duplicate is already in returned set
                             continue
                     #no element in s is a near duplicate of x, so return it
                     s.append(hashed)
-                    toreturn.append((x[0][0],x[1]))
+                    toreturn.append(x)
                 else:
                     return toreturn
             #unlabeled, deduplicated are fewer than number
             return toreturn
         else:
-            return [(x[0][0],x[1]) for x in l[:number]]
+            return l[:number]
                     
         
     def setCountVectorizer(self,vocab=None,binary=True,ngram_range=(1,1),max_df=0.95,min_df=0.005):
@@ -150,26 +178,23 @@ class MemexAS():
     def get_next_text(self):
         if len(self.activeSearch.unlabeled_idxs)>0:
             m=self.activeSearch.getNextMessage()
-            return self.curr_corpus[self.index_map[m]][1]
+            return self.curr_corpus[m][1]
         else:
             return ""
         
     def get_next(self):
         if len(self.activeSearch.unlabeled_idxs)>0:
             m=self.activeSearch.getNextMessage()
-            return self.curr_corpus[self.index_map[m]]
+            return self.curr_corpus[m]
         else:
             return (-1,"")
        
     def get_next_id(self):
         if len(self.activeSearch.unlabeled_idxs)>0:
             m=self.activeSearch.getNextMessage()
-            return self.curr_corpus[self.index_map[m]][0]
+            return self.curr_corpus[m][0]
         else:
             return -1
-        
-    def decide_startingpoint(self,id):
-        self.activeSearch.firstMessage(self.index_map_reverse[self.id_to_idx[id]])        
         
     def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.1,lmimdbfeatures=False,eta=0.2):
         #store parameter selections
@@ -189,34 +214,8 @@ class MemexAS():
         corpus=[(x['ad_id'],x['text']) for x in jsonobj]
         new_labeled_indices=[i+self.start_idx for i,x in enumerate(self.activeSearch.labels[self.start_idx:]) if x !=-1]
         prev_labels=[self.activeSearch.labels[x] for x in new_labeled_indices]#list comprehension
-        prev_corpus=[self.curr_corpus[self.index_map[x]] for x in new_labeled_indices]
+        prev_corpus=[self.curr_corpus[x] for x in new_labeled_indices]
         self.startAS(corpus,labeled_corpus=prev_corpus,labels=prev_labels,starting_points=starting_points)
-        
-        
-    def deduplicate(self,corpus):
-        # reduce size of corpus passed on to AS by removing near-duplicates
-        # create a mapping from original corpus passed to function to the new, smaller alt_copus 
-        # where near-duplicates have been removed
-        alt_corpus=[]
-        flag=True
-
-        hashed=[self.hashing(tup[1].lower()) for i,tup in enumerate(corpus)]#minhash
-        count=self.start_idx#initialize with number of previously labeled objects
-        for i,x in enumerate(hashed):
-            for y in alt_corpus:
-                if x==y[1]:#minhash
-                    self.near_duplicates[y[0]].append(i)
-                    self.index_map_reverse[i]=self.index_map_reverse[y[0]]
-                    flag=False
-                    break
-            if flag:
-                alt_corpus.append((i,x))
-                self.index_map[count]=i
-                self.index_map_reverse[i]=count
-                self.near_duplicates[i]=[i]
-                count+=1
-            flag=True
-        return [corpus[y[0]][1] for y in alt_corpus]
         
     def startAS(self,corpus,labeled_corpus=[],labels=[],starting_points=[]):
         """
@@ -236,25 +235,20 @@ class MemexAS():
         self.id_to_idx={}#maps external id (e.g. AdId) to internal index
         for i,el in enumerate(corpus):
             self.id_to_idx[el[0]]=i+self.start_idx #do not include indices pointing to already labeled objects from previous AS
-
         self.curr_corpus=corpus
         self.num_messages=len(corpus)
-        self.index_map={}#maps active search matrix indices to indices of curr_corpus
-        self.index_map_reverse={}#maps indices from corpus to active search matrix indices
-        self.near_duplicates={}#for indices in corpus points to indices of near duplicates 
-        
-
-        text=[]
+        self.unlabeled_idxs=set(xrange(self.start_idx,self.num_messages))
+        self.hashlookup={}
         if self.dedupe:
-            text = [x[1] for x in self.prev_corpus] + self.deduplicate(corpus)
-        else:
-            count=self.start_idx
-            for i in range(self.num_messages):
-                self.index_map[count]=i
-                self.index_map_reverse[i]=count
-                self.near_duplicates[i]=[i]
-                count+=1           
-            text = [x[1] for x in self.prev_corpus] + [y[1] for y in corpus]
+            #calculate all minhash values
+            self.hashed=[self.hashing(tup[1].lower()) for i,tup in enumerate(corpus)]#minhash
+            #for now, save collisions in a dictionary. Replace with locality sensitive hashing later
+            for i,h in enumerate(self.hashed):
+                if h in self.hashlookup:
+                    self.hashlookup[h].append(i)
+                else:
+                    self.hashlookup[h]=[i]
+        text = [x[1] for x in self.prev_corpus] + [y[1] for y in corpus]
         
         #save text so that restart is possible
         self.text=text
@@ -298,9 +292,8 @@ class MemexAS():
             if len(self.prev_labels)==0:
                 raise Exception ("No start point and no labels provided")
         else:
-            self.decide_startingpoint(starting_points[0])
-            for x in starting_points[1:]:
-                self.activeSearch.setLabel(self.index_map_reverse[self.id_to_idx[x]],1)
+            for x in starting_points:
+                self.setLabel(x,1)
 
         
     def extendAS(self,ext_vocab=[]):
@@ -310,31 +303,6 @@ class MemexAS():
         #this is just a restart so labels are still valid
         labels={key: value for key, value in enumerate(self.activeSearch.labels.tolist()) if value > -1}
         self.extendedVocabulary.update(set(ext_vocab))
-        
-        #redo everything
-        #ngram_range=(500,0)
-        #if len(ext_vocab)==0:
-        #    return
-        #for x in self.extendedVocabulary:
-        #    l=len(x.split())
-        #    ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
-        
-        
-        #vocabulary = self.getVocabulary(self.text,extendedVoc=list(self.extendedVocabulary))
-        #if self.tfidf:
-        #    self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
-        #else:
-        #    self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
-        #self.X=self.vectorizer.fit_transform(self.text)
-        #add column to make sure induced graph is fully connected
-        #self.X = sparse.hstack((self.X, sparse.csr_matrix(np.full((self.X.shape[0],1), self.X.data.min()*.1 ))))
-
-        #if self.dimred:
-        #    print self.X.shape
-        #    svd=TruncatedSVD(n_components=self.n_components)
-        #    self.X=svd.fit_transform(self.X)
-        #    print("dimensionalty reduction leads to explained variance ratio sum of "+str(svd.explained_variance_ratio_.sum()))
-        #    self.sparse=False
         
         #attach only 
         ngram_range=(500,0)

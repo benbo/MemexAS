@@ -19,7 +19,6 @@ class MemexAS():
     
     def __init__ (self,threshold=0.98):
         self.activeSearch=None
-        self.duplicate_threshold=threshold#needed for simhash but not for not minhash        
         self.prev_corpus=[]#previously labeled data. List of touples (id,text) where id is external id
         self.prev_labels=[]#labels for previously labeled data.
         self.vectorizer=None
@@ -29,33 +28,41 @@ class MemexAS():
         self.num_messages=-1
         self.start_idx=0
         self.extendedVocabulary=set()
+        self.unlabeled_idxs=set()
         self.Xsparse=None
         self.scalefactor=0
         self.dedupe=True
         self.tfidf=False
-        self.prevalence=0.1
+        self.prevalence=0.01
         self.eta=0.5
         self.dimred=False
         self.sparse=True
-
+        self.vecanalyzer='word'
+        self.binary=True
+        self.max_df=0.7
+        self.min_df=0.001
+        self.decode_error=u'ignore'
+        self.tfidfnorm='l1'
+        self.sublinear_tf=False
+        self.use_idf=False
 
     def interestingMessage(self):
         if len(self.activeSearch.unlabeled_idxs)>1:
-            try:
+            #try:
                 idx=self.activeSearch.next_message
                 near_dupes=[]
-                if self.dedupe
+                if self.dedupe:
                     currhash = self.hashed[self.activeSearch.next_message]
                     near_dupes=self.hashlookup[currhash]
                 self.activeSearch.interestingMessage()
                 self.unlabeled_idxs.remove(idx)
-                for idx in near_dupes[1:]:
+                for x in near_dupes[1:]:
                     if x in self.unlabeled_idxs:
                         self.activeSearch.setLabel(x,1)
                         self.unlabeled_idxs.remove(x)
-
-            except,e:
-                print e
+            #except Exception as e:
+            #    print e.message, e.args
+                
         elif len(self.activeSearch.unlabeled_idxs)==1:
             idx=self.activeSearch.next_message
             self.activeSearch.labels[idx] = 0
@@ -65,21 +72,22 @@ class MemexAS():
     
     def boringMessage(self):
         if len(self.activeSearch.unlabeled_idxs)>1:
-            try:
+            #try:
                 idx=self.activeSearch.next_message
                 near_dupes=[]
-                if self.dedupe
+                if self.dedupe:
                     currhash = self.hashed[self.activeSearch.next_message]
                     near_dupes=self.hashlookup[currhash]
                 self.activeSearch.boringMessage()
                 self.unlabeled_idxs.remove(idx)
-                for idx in near_dupes[1:]:
+                for x in near_dupes[1:]:
+                    print self.text[x]
                     if x in self.unlabeled_idxs:
                         self.activeSearch.setLabel(x,0)
                         self.unlabeled_idxs.remove(x)
-
-            except,e:
-                print e
+            #except Exception as e:
+            #    print e.message, e.args
+                
         elif len(self.activeSearch.unlabeled_idxs)==1:
             idx=self.activeSearch.next_message
             self.activeSearch.labels[idx] = 0
@@ -110,19 +118,7 @@ class MemexAS():
         if len (n_grams) > 0:
             return min([int(hashlib.sha256(gram).hexdigest(),16) for gram in n_grams])
         else:
-            int(hashlib.sha256("").hexdigest(),16)
-        
-        
-    def getVocabulary(self,text,extendedVoc=[],ngram_range=(1,1),max_df=0.95,min_df=0.005):
-        cvec=CountVectorizer(analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df)
-        cvec.fit(text)
-        vocab=cvec.vocabulary_
-        idx=len(vocab)
-        for ngram in extendedVoc:
-            if ngram not in vocab:
-                vocab[ngram]=idx
-                idx+=1
-        return vocab
+            return int(hashlib.sha256(text).hexdigest(),16)
         
         
     def returnWeights(self,unlabeled_only=True,number=20,deduped=True):#return list of (ids,weights)
@@ -151,19 +147,36 @@ class MemexAS():
         else:
             return l[:number]
                     
-        
-    def setCountVectorizer(self,vocab=None,binary=True,ngram_range=(1,1),max_df=0.95,min_df=0.005):
+            
+    def setCountVectorizer(self,vocab=None,ngram_range=(1,1)):
         if vocab:
-            self.vectorizer=CountVectorizer(analyzer='word',vocabulary=vocab,binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
+            self.vectorizer=CountVectorizer(analyzer=self.vecanalyzer,vocabulary=vocab,binary=self.binary,ngram_range=ngram_range,
+                                            max_df=self.max_df,min_df=self.min_df,decode_error=self.decode_error)
         else:
-            self.vectorizer=CountVectorizer(analyzer='word',binary=binary,ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
-    
-    def setTfidf(self,vocab=None,ngram_range=(1,1),max_df=0.95,min_df=0.005):
+            self.vectorizer=CountVectorizer(analyzer=self.vecanalyzer,binary=self.binary,ngram_range=ngram_range,
+                                            max_df=self.max_df,min_df=self.min_df,decode_error=self.decode_error)
+
+    def setTfidf(self,vocab=None,ngram_range=(1,1)):
         if vocab:
-            self.vectorizer=TfidfVectorizer(norm='l1',vocabulary=vocab,stop_words='english',analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
+            self.vectorizer=TfidfVectorizer(norm=self.tfidfnorm,vocabulary=vocab,analyzer=self.vecanalyzer,binary=self.binary,ngram_range=ngram_range,
+                                            max_df=self.max_df,min_df=self.min_df,decode_error=self.decode_error,
+                                            sublinear_tf=self.sublinear_tf,use_idf=self.use_idf)
         else:
-            self.vectorizer=TfidfVectorizer(norm='l1',stop_words='english',analyzer='word',ngram_range=ngram_range,max_df=max_df,min_df=min_df,decode_error=u'ignore')
-        
+            self.vectorizer=TfidfVectorizer(norm=self.tfidfnorm,analyzer=self.vecanalyzer,binary=self.binary,ngram_range=ngram_range,
+                                            max_df=self.max_df,min_df=self.min_df,decode_error=self.decode_error,
+                                            sublinear_tf=self.sublinear_tf,use_idf=self.use_idf)
+            
+    def getVocabulary(self,text,extendedVoc=[],ngram_range=(1,1)):
+        cvec=CountVectorizer(analyzer=self.vecanalyzer,binary=self.binary,ngram_range=ngram_range,
+                             max_df=self.max_df,min_df=self.min_df,decode_error=self.decode_error)
+        cvec.fit(text)
+        vocab=cvec.vocabulary_
+        idx=len(vocab)
+        for ngram in extendedVoc:
+            if ngram not in vocab:
+                vocab[ngram]=idx
+                idx+=1
+        return vocab
 
     def get_random_message(self):
         mid=randint(0,self.num_messages)
@@ -196,7 +209,7 @@ class MemexAS():
         else:
             return -1
         
-    def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.1,lmimdbfeatures=False,eta=0.2):
+    def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.01,lmimdbfeatures=False,eta=0.2):
         #store parameter selections
         #corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
         corpus=[(x['ad_id'],x['text']) for x in jsonobj]
@@ -264,11 +277,10 @@ class MemexAS():
             self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
         else:
             self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
-        X=self.vectorizer.fit_transform(text)
+        self.Xsparse=self.vectorizer.fit_transform(text)
         #add column to make sure induced graph is fully connected
-        self.Xsparse = sparse.hstack((X, sparse.csr_matrix(np.full((X.shape[0],1), X.data.min()*.1 ))))
+        #self.Xsparse = sparse.hstack((X, sparse.csr_matrix(np.full((X.shape[0],1), X.data.min()*.1 ))))
         #self.X = preprocessing.scale(self.X)
-        
         
         if self.dimred:
             print self.Xsparse.shape
@@ -276,13 +288,17 @@ class MemexAS():
             X=svd.fit_transform(self.Xsparse)
             print("dimensionalty reduction leads to explained variance ratio sum of "+str(svd.explained_variance_ratio_.sum()))
             self.sparse=False
+            #b=np.array([len(x) for x in text,ndmin=2).transpose()
+            #X=np.hstack((X,b))
         else:
+            #b=np.array([len(x) for x in text,ndmin=2).transpose()
+            #self.Xsparse=sparse.hstack((X,b))
             X=self.Xsparse
 
         #get scale
         #extimate pairwise distances through random sampling
-        pairwise_dists = squareform(pdist(X[np.random.choice(X.shape[0], 1000, replace=False),:], 'euclidean'))
-        self.scalefactor = np.mean(pairwise_dists)
+        #pairwise_dists = squareform(pdist(X[np.random.choice(X.shape[0], 1000, replace=False),:], 'euclidean'))
+        #self.scalefactor = np.mean(pairwise_dists)
         
         params=asI.Parameters(pi=self.prevalence,verbose=False,sparse=self.sparse,eta=self.eta)
         self.activeSearch = asI.kernelAS(params=params) ##fast

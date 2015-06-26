@@ -39,12 +39,15 @@ class MemexAS():
         self.sparse=True
         self.vecanalyzer='word'
         self.binary=True
-        self.max_df=0.7
-        self.min_df=0.001
+        #self.max_df=0.7
+        #self.min_df=0.001
+        self.max_df=1
+        self.min_df=0
         self.decode_error=u'ignore'
         self.tfidfnorm='l1'
-        self.sublinear_tf=False
+        self.sublinear_tf=True
         self.use_idf=False
+        self.vocab=None
 
     def interestingMessage(self):
         if len(self.activeSearch.unlabeled_idxs)>1:
@@ -209,14 +212,14 @@ class MemexAS():
         else:
             return -1
         
-    def newActiveSearch(self,jsonobj,starting_points,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.01,lmimdbfeatures=False,eta=0.2):
+    def newActiveSearch(self,jsonobj,starting_points,vocab=None,labeled_corpus=[],labels=[],dedupe=False,tfidf=True,dimred=True,n_components=100,prevalence=0.01,eta=0.2):
         #store parameter selections
         #corpus=[(x['_id'],x['_source']['text']) for x in jsonobj]
+        self.vocab=vocab
         corpus=[(x['ad_id'],x['text']) for x in jsonobj]
         self.dedupe=dedupe
         self.tfidf=tfidf
         self.prevalence=prevalence
-        self.lmimdbfeatures=lmimdbfeatures
         self.eta=eta
         self.dimred=dimred
         self.n_components=n_components
@@ -272,7 +275,10 @@ class MemexAS():
         for x in self.extendedVocabulary:
             l=len(x.split())
             ngram_range=(min((l,ngram_range[0])),max((l,ngram_range[1])))
-        vocabulary = self.getVocabulary(text,extendedVoc=list(self.extendedVocabulary))
+        if self.vocab == None:
+            vocabulary = self.getVocabulary(text,extendedVoc=list(self.extendedVocabulary))
+        else:
+            vocabulary = self.vocab+list(self.extendedVocabulary)
         if self.tfidf:
             self.setTfidf(vocab=vocabulary,ngram_range=ngram_range)
         else:
@@ -303,13 +309,16 @@ class MemexAS():
         params=asI.Parameters(pi=self.prevalence,verbose=False,sparse=self.sparse,eta=self.eta)
         self.activeSearch = asI.kernelAS(params=params) ##fast
         
-        self.activeSearch.initialize(X.transpose(),init_labels = {key: value for key, value in enumerate(self.prev_labels)})
         if len(starting_points)==0:
             if len(self.prev_labels)==0:
                 raise Exception ("No start point and no labels provided")
-        else:
-            for x in starting_points:
-                self.setLabel(x,1)
+        init_labels = {key: value for key, value in enumerate(self.prev_labels)}
+        for x in starting_points:
+            idx=self.id_to_idx[x]
+            self.unlabeled_idxs.remove(idx)
+            init_labels[idx]=1
+        self.activeSearch.initialize(X.transpose(),init_labels = init_labels)
+        
 
         
     def extendAS(self,ext_vocab=[]):

@@ -284,9 +284,15 @@ class MemexAS():
         else:
             self.setCountVectorizer(vocab=vocabulary,ngram_range=ngram_range)
         self.Xsparse=self.vectorizer.fit_transform(text)
-        #add column to make sure induced graph is fully connected
-        #self.Xsparse = sparse.hstack((X, sparse.csr_matrix(np.full((X.shape[0],1), X.data.min()*.1 ))))
-        #self.X = preprocessing.scale(self.X)
+        
+        
+        #add column with ones for empty rows 
+        a = self.Xsparse.dot(np.ones(self.Xsparse.shape[1]))#this works because features are non-negative
+        anonz=a.nonzero()[0]
+        if anonz.shape[0] != self.Xsparse.shape[0]:#matrix contains empty rows
+            b=np.ones(self.Xsparse.shape[0])
+            b[anonz]=0
+            self.Xsparse=sparse.hstack((self.Xsparse,sparse.csr_matrix(b).T))
         
         if self.dimred:
             print self.Xsparse.shape
